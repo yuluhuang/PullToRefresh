@@ -27,10 +27,12 @@ import java.util.Date;
 public class PullToRefresh extends ListView implements AbsListView.OnScrollListener {
 
     View header;//顶部布局文件
+    View footer;//顶部布局文件
     int headerHeight;//顶部布局文件的高度
     int firstVisibleItem;//当前第一个可见item的位置
     int scrollState;//listView 当前滚动状态
 
+    boolean isLastRow;//是否为最后一行
     boolean isRemark;//标记，当前是在listView最顶端按下的
     int startY;//按下时的Y值
     int state;//当前状态
@@ -39,12 +41,14 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
     final int RELESE = 2;//提示释放状态
     final int REFLASHING = 3;//刷新状态
 
+    private ProgressBar footerprogress;
+
+    IReflashListener iReflashListener;//刷新数据的接口
 
     public void setiReflashListener(IReflashListener iReflashListener) {
         this.iReflashListener = iReflashListener;
     }
 
-    IReflashListener iReflashListener;//刷新数据的接口
 
     public PullToRefresh(Context context) {
         super(context);
@@ -70,11 +74,14 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
     private void initView(Context context) {
         LayoutInflater inflater = LayoutInflater.from(context);
         header = inflater.inflate(R.layout.header_layout, null);
+        footer = inflater.inflate(R.layout.footer_layout, null);
+        footerprogress = (ProgressBar) footer.findViewById(R.id.footerprogress);
         measureView(header);
         headerHeight = header.getMeasuredHeight();
-        Log.i("R", headerHeight + "");
+        Log.i("RL", headerHeight + "====>");
         topPadding(-headerHeight);
         this.addHeaderView(header);
+        this.addFooterView(footer);
         this.setOnScrollListener(this);
     }
 
@@ -116,11 +123,30 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
     @Override
     public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
         this.firstVisibleItem = firstVisibleItem;
+        //判断是否滚到最后一行
+        if (firstVisibleItem + visibleItemCount == totalItemCount && totalItemCount > 0) {
+            //Log.i("RL", state + "");
+            isLastRow = true;
+        }
     }
 
     @Override
     public void onScrollStateChanged(AbsListView view, int scrollState) {
         this.scrollState = scrollState;
+
+        //正在滚动时回调，回调2-3次，手指没抛则回调2次。scrollState = 2的这次不回调
+        //回调顺序如下
+        //第1次：scrollState = SCROLL_STATE_TOUCH_SCROLL(1) 正在滚动
+        //第2次：scrollState = SCROLL_STATE_FLING(2) 手指做了抛的动作（手指离开屏幕前，用力滑了一下）
+        //第3次：scrollState = SCROLL_STATE_IDLE(0) 停止滚动
+        Log.i("RL", (scrollState)+"===>" +(isLastRow)+"===>" +(state == 0 && isLastRow && scrollState == AbsListView.OnScrollListener.SCROLL_STATE_IDLE) + "");
+        //当滚到最后一行且停止滚动时，执行加载
+        if (state == 0 && isLastRow && scrollState == AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL) {
+            footerprogress.setVisibility(View.VISIBLE);
+            //加载元素
+            iReflashListener.onReflash();
+            isLastRow = false;
+        }
 
     }
 
@@ -129,8 +155,8 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
         switch (ev.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 if (firstVisibleItem == 0) {
-                    isRemark=true;
-                    startY=(int)ev.getY();
+                    isRemark = true;
+                    startY = (int) ev.getY();
 
                 }
                 break;
@@ -138,15 +164,15 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
                 onMove(ev);
                 break;
             case MotionEvent.ACTION_UP:
-                if(state==RELESE){
-                    state=REFLASHING;
+                if (state == RELESE) {
+                    state = REFLASHING;
                     //加载最新数据；
                     reflashViewByState();
                     iReflashListener.onReflash();
 
-                }else if(state==PULL){
-                    state=NONE;
-                    isRemark=false;
+                } else if (state == PULL) {
+                    state = NONE;
+                    isRemark = false;
                     reflashViewByState();
                 }
                 break;
@@ -157,21 +183,21 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
     /**
      * 根据当前状态，改变界面显示
      */
-    private void reflashViewByState(){
-        TextView tip=(TextView)header.findViewById(R.id.tip);
-        ImageView arrow=(ImageView)header.findViewById(R.id.arrow);
-        ProgressBar progress=(ProgressBar)header.findViewById(R.id.progress);
-        RotateAnimation animation=new RotateAnimation(0,180,
-                RotateAnimation.RELATIVE_TO_SELF,0.5f,
-                RotateAnimation.RELATIVE_TO_SELF,0.5f);
+    private void reflashViewByState() {
+        TextView tip = (TextView) header.findViewById(R.id.tip);
+        ImageView arrow = (ImageView) header.findViewById(R.id.arrow);
+        ProgressBar progress = (ProgressBar) header.findViewById(R.id.progress);
+        RotateAnimation animation = new RotateAnimation(0, 180,
+                RotateAnimation.RELATIVE_TO_SELF, 0.5f,
+                RotateAnimation.RELATIVE_TO_SELF, 0.5f);
         animation.setDuration(200);
         animation.setFillAfter(true);
-        RotateAnimation animation1=new RotateAnimation(180,0,
-                RotateAnimation.RELATIVE_TO_SELF,0.5f,
-                RotateAnimation.RELATIVE_TO_SELF,0.5f);
+        RotateAnimation animation1 = new RotateAnimation(180, 0,
+                RotateAnimation.RELATIVE_TO_SELF, 0.5f,
+                RotateAnimation.RELATIVE_TO_SELF, 0.5f);
         animation1.setDuration(0);
         animation1.setFillAfter(true);
-        switch (state){
+        switch (state) {
             case NONE:
                 arrow.clearAnimation();
                 topPadding(-headerHeight);
@@ -205,19 +231,18 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
     /**
      * 获取完数据
      */
-    public void reflashComplete(){
-        state=NONE;
-        isRemark=false;
+    public void reflashComplete() {
+        state = NONE;
+        isRemark = false;
+        footerprogress.setVisibility(View.GONE);
         reflashViewByState();
-        TextView lastupdatetine=(TextView)header.findViewById(R.id.lastupdate_time);
-        SimpleDateFormat format=new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String time=format.format(new Date(System.currentTimeMillis()));
+        TextView lastupdatetine = (TextView) header.findViewById(R.id.lastupdate_time);
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String time = format.format(new Date(System.currentTimeMillis()));
         lastupdatetine.setText(time);
     }
 
-    public  interface IReflashListener{
-        public void onReflash();
-    }
+
     /**
      * 判断移动过程中的操作
      *
@@ -229,8 +254,9 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
         }
 
         int tempY = (int) ev.getY();
+
         int space = tempY - startY;
-        int topPadding=space-headerHeight;
+        int topPadding = space - headerHeight;
         switch (state) {
             case NONE:
                 if (space > 0) {
@@ -248,15 +274,14 @@ public class PullToRefresh extends ListView implements AbsListView.OnScrollListe
                 break;
             case RELESE:
                 topPadding(topPadding);
-                if(space<headerHeight+30){
-                    state=PULL;
+                if (space < headerHeight + 30) {
+                    state = PULL;
                     reflashViewByState();
-                }else if(space<=0){
-                    state=NONE;
-                    isRemark=false;
+                } else if (space <= 0) {
+                    state = NONE;
+                    isRemark = false;
                     reflashViewByState();
                 }
-
                 break;
         }
     }

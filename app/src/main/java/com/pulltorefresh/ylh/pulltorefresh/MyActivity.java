@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-public class MyActivity extends ActionBarActivity implements PullToRefresh.IReflashListener {
+public class MyActivity extends ActionBarActivity implements IReflashListener {
     PullToRefresh listview;
     List<String> data;
     @Override
@@ -32,8 +32,31 @@ public class MyActivity extends ActionBarActivity implements PullToRefresh.IRefl
         data.add("测试数据2");
         data.add("测试数据3");
         data.add("测试数据4");
-
+        data.add("测试数据1");
+        data.add("测试数据2");
+        data.add("测试数据3");
+        data.add("测试数据4");
+        data.add("测试数据1");
+        data.add("测试数据2");
+        data.add("测试数据3");
+        data.add("测试数据4");
         return data;
+    }
+
+
+    @Override
+    public void onReflash() {
+        //获取最新数据
+        Handler handler = new Handler();
+        handler.postDelayed(new Runnable() {
+
+            @Override
+            public void run() {
+                getData();
+                listview.reflashComplete();
+
+            }
+        }, 2000);
     }
 
 
@@ -54,20 +77,5 @@ public class MyActivity extends ActionBarActivity implements PullToRefresh.IRefl
             return true;
         }
         return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    public void onReflash() {
-        //获取最新数据
-        Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-
-            @Override
-            public void run() {
-                getData();
-                listview.reflashComplete();
-
-            }
-        }, 2000);
     }
 }
